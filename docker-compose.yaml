@@ -1,0 +1,90 @@
+networks:
+  default:
+    driver: bridge
+    name: roboshop
+    #external: true # I created network already using docker netwrok create roboshop
+    # For the all the services in this playbook, I mean in this yaml file. 
+    # Alraedy create cheste external : true ani istam. 
+    # Present external : true anedhi comment lo undhi ante ardham, docker compose run avutunnapud ade create chestumdhi network kuda, ala ney network lopala default ani undi kada --> means ee network lopala unna anni services ki ee network default ani ardham.
+volumes:
+  mongodb:
+  redis:
+  mysql:
+  rabbitmq:   # docker volume create rabbitmq
+services:
+  mongodb:
+    image: kalyantalabothula/mongodb:v1
+    container_name: mongodb
+    volumes:  # to mount
+      - mongodb:/data/db    # <-- no space  
+    # volume name: where it is stored in volume location, yekkada mount cheayli..
+  catalogue:
+    image: kalyantalabothula/catalogue:v1
+    container_name: catalogue
+    depends_on:
+    - mongodb
+  redis:
+    image: redis:7.0
+    container_name: redis
+    volumes:
+      - redis:/data
+  user:
+    image: kalyantalabothula/user:v1
+    container_name: user
+    depends_on:
+    - redis
+    - mongodb
+  cart: 
+    image: kalyantalabothula/cart:v1
+    container_name: cart
+    depends_on:
+    - redis
+    - catalogue
+  mysql:
+    image: kalyantalabothula/mysql:v1
+    container_name: mysql
+    volumes:
+      - mysql:/var/lib/mysql
+  shipping:
+    image: kalyantalabothula/shipping:v1
+    container_name: shipping
+    depends_on: 
+    - mysql
+    - cart
+# rabbitmq ki oka system user/password ni create cheyali.. Documention lo ctrl+f= user enter 
+# so inka container create iyye tappude user/password ni create cheystumdhi.. aadi ela mention cheyali
+# yeppudu ite malli $ docker compose up -d ani este rest new gha add ina service matrame start avutumdhi.. 
+  rabbitmq:
+    image: rabbitmq:3
+    container_name: rabbitmq
+    environment:          # set environment variables
+      RABBITMQ_DEFAULT_USER: roboshop
+      RABBITMQ_DEFAULT_PASS: roboshop123 
+    volumes:
+      - rabbitmq:/var/lib/rabbitmq
+  payment:
+    image: kalyantalabothula/payment:v1
+    container_name: payment
+    environment:
+      CART_HOST: cart
+      CART_PORT: 8080
+      USER_HOST: user
+      USER_PORT: 8080
+      AMQP_HOST: rabbitmq
+      AMQP_USER: roboshop
+      AMQP_PASS: roboshop123
+    depends_on: 
+    - rabbitmq
+    - user
+    - cart
+  frontend:
+    image: kalyantalabothula/frontend:v1
+    container_name: frontend
+    ports:
+    - "80:80" # host port: container port
+    depends_on:
+    - catalogue
+    - user
+    - cart
+    - shipping
+    - payment
